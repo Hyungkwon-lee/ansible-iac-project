@@ -47,14 +47,14 @@
       include_role:
         name: loadbalancer
         tasks_from: "{{ action }}"
-      tags: traffic
+      tags: loadbalancer
 
     # 7. 시작템플릿 및 오토스케일링 (LT, ASG)
     - name: Traffic & Scaling Layer
       include_role:
         name: asg
         tasks_from: "{{ action }}"
-      tags: traffic  
+      tags: asg
 
 
 
