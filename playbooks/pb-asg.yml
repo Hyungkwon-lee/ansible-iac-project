@@ -16,6 +16,7 @@
     - name: Deploy ASG Resources
       include_role:
         name: asg
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate ASG Resources
