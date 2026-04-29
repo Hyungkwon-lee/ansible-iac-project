@@ -14,7 +14,7 @@ network → security → iam → app_origin → jenkins → loadbalancer → asg
 ```bash
 # 전체 실행
 source scripts/token.sh {MFA_CODE}
-ansible-playbook site.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy"
 ```
 
 ---
