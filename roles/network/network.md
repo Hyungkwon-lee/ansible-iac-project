@@ -21,10 +21,10 @@ AWS 네트워크 기반 인프라를 구성합니다.
 
 ```bash
 # 전체 실행 시
-ansible-playbook site.yml -e "action=main" --tags network
+ansible-playbook site.yml -e "action=deploy" --tags network
 
 # 개별 실행 시
-ansible-playbook playbooks/pb-network.yml -e "action=main"
+ansible-playbook playbooks/pb-network.yml -e "action=deploy"
 ```
 
 ---
