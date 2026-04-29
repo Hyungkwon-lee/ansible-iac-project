@@ -10,6 +10,7 @@
     - name: Deploy Network
       include_role:
         name: network
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate Network
