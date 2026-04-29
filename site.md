@@ -64,15 +64,16 @@ aws sts get-session-token \
 
 ```bash
 # 전체 인프라 구축
-ansible-playbook site.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy"
 
 # 특정 role만 실행 (태그 사용)
-ansible-playbook site.yml -e "action=main" --tags network
-ansible-playbook site.yml -e "action=main" --tags sg
-ansible-playbook site.yml -e "action=main" --tags iam
-ansible-playbook site.yml -e "action=main" --tags origin
-ansible-playbook site.yml -e "action=main" --tags jenkins
-ansible-playbook site.yml -e "action=main" --tags traffic
+ansible-playbook site.yml -e "action=deploy" --tags network
+ansible-playbook site.yml -e "action=deploy" --tags sg
+ansible-playbook site.yml -e "action=deploy" --tags iam
+ansible-playbook site.yml -e "action=deploy" --tags origin
+ansible-playbook site.yml -e "action=deploy" --tags jenkins
+ansible-playbook site.yml -e "action=deploy" --tags loadbalancer
+ansible-playbook site.yml -e "action=deploy" --tags asg
 ```
 
 ---
