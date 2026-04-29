@@ -1,7 +1,7 @@
 # ansible-iac-project
 
 Ansible을 활용한 AWS 인프라 IaC(Infrastructure as Code) 구성 프로젝트입니다.  
-→ 프로젝트 전체 개요는 [infra-portfolio](https://github.com/kwony93/infra-portfolio) 참고
+→ 프로젝트 전체 개요는 [infra-portfolio](https://github.com/Hyungkwon-lee/infra-portfloio.git) 참고
 
 ---
 
