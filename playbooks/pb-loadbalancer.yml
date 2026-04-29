@@ -10,6 +10,7 @@
     - name: Deploy ALB Resources
       include_role:
         name: loadbalancer
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate ALB Resources
