@@ -31,6 +31,7 @@ ansible-playbook playbooks/pb-network.yml -e "action=main"
 
 ## 구축 흐름 (main.yml)
 
+```
 VPC 생성
 → Public/Private Subnet × 4 생성 (loop)
 → IGW 생성
@@ -38,6 +39,7 @@ VPC 생성
 → NAT Gateway 조회/생성 (중복 방지)
 → Public RT 생성 → IGW 기본 경로 추가 → Public Subnet 연결
 → Private RT 생성 → NAT GW 기본 경로 추가 → Private Subnet 연결
+```
 
 ---
 
@@ -83,12 +85,14 @@ loop: "{{ pub_subnets + pri_subnets }}"
 
 의존관계 역순으로 삭제합니다.
 
+```
 Route Table 삭제
 → NAT Gateway 삭제 (wait: yes)
 → EIP 릴리스
 → Subnet 삭제
 → IGW 삭제
 → VPC 삭제
+```
 
 > NAT Gateway 삭제는 시간이 걸리므로 `wait: yes`로 완전히 삭제될 때까지 대기합니다.
 > 삭제 실패 시 다음 단계로 넘어가도록 `ignore_errors: yes`를 적용했습니다.
