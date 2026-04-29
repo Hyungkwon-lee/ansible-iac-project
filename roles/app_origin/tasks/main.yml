@@ -1,0 +1,97 @@
+---
+# 1. Public Subnet A 조회
+- name: Get Public Subnet A info
+  amazon.aws.ec2_vpc_subnet_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-pub-a"
+  register: subnet_info
+
+# 2. 보안 그룹 조회
+- name: Get Security Group IDs
+  amazon.aws.ec2_security_group_info:
+    region: "{{ region }}"
+    filters:
+      group-name:
+        - "{{ prefix }}-ssh-sg"
+        - "{{ prefix }}-web-sg"
+  register: sg_info
+
+# 3. 원본 EC2 1대만 유지하며 생성
+- name: Launch App Origin EC2
+  amazon.aws.ec2_instance:
+    name: "{{ prefix }}-app-origin"
+    region: "{{ region }}"
+    image_id: "{{ ami_id }}"
+    instance_type: "{{ instance_type }}"
+    key_name: "{{ key_name }}"
+    vpc_subnet_id: "{{ subnet_info.subnets[0].id }}"
+    security_groups: "{{ sg_info.security_groups | map(attribute='group_id') | list }}"
+    iam_instance_profile: "{{ prefix }}-app-instance-profile"
+    network:
+      assign_public_ip: yes
+    user_data: |
+      #!/bin/bash
+      set -eux
+      exec > /var/log/user-data.log 2>&1
+      export DEBIAN_FRONTEND=noninteractive
+
+      # 패키지 설치
+      apt-get update -y
+      apt-get install -y docker.io ruby-full wget curl git zip unzip docker-compose
+
+      # Docker 설정
+      systemctl enable docker
+      systemctl start docker
+      usermod -aG docker ubuntu || true
+
+      # CodeDeploy Agent 설치
+      cd /home/ubuntu
+      wget https://aws-codedeploy-{{ region }}.s3.{{ region }}.amazonaws.com/latest/install
+      chmod +x ./install
+      ./install auto
+
+      systemctl enable codedeploy-agent
+      systemctl start codedeploy-agent
+
+      # 상태 확인 로그
+      systemctl status codedeploy-agent --no-pager || true
+
+    
+
+    tags:
+      Name: "{{ prefix }}-app-origin"
+      Role: "Origin"
+  register: ec2_origin
+
+# 4. 인스턴스 running 상태 대기
+- name: Wait until instance is running
+  amazon.aws.ec2_instance_info:
+    instance_ids: "{{ ec2_origin.instance_ids }}"
+    region: "{{ region }}"
+  register: wait_ec2
+  until: wait_ec2.instances[0].state.name == 'running'
+  retries: 15
+  delay: 20
+
+# 5. user_data 완료 추가 대기
+- name: Wait extra time for user_data completion
+  ansible.builtin.pause:
+    seconds: 180
+
+# 6. AMI 생성
+- name: Create AMI from App Origin Instance
+  amazon.aws.ec2_ami:
+    instance_id: "{{ ec2_origin.instance_ids[0] }}"
+    name: "{{ prefix }}-app-image-{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+    region: "{{ region }}"
+    wait: true
+    tags:
+      Name: "{{ prefix }}-app-image"
+      SourceInstance: "{{ prefix }}-app-origin"
+  register: created_ami
+
+# 7. 생성된 AMI ID 출력
+- name: Display Created AMI ID
+  ansible.builtin.debug:
+    msg: "New AMI ID is {{ created_ami.image_id }}"

@@ -1,0 +1,93 @@
+---
+# 1. Private 서브넷 ID 리스트 조회
+- name: Get Private Subnet IDs
+  amazon.aws.ec2_vpc_subnet_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name":
+        - "{{ prefix }}-pri-a"
+        - "{{ prefix }}-pri-c"
+  register: pri_subnets_info
+
+# 2. 보안 그룹 조회
+- name: Get Security Group IDs for ASG instances
+  amazon.aws.ec2_security_group_info:
+    region: "{{ region }}"
+    filters:
+      group-name:
+        - "{{ prefix }}-ssh-sg"
+        - "{{ prefix }}-web-sg"
+  register: sg_info
+
+# 3. AMI ID 조회 (app_origin에서 생성한 AMI)
+- name: Get the latest APP AMI ID
+  amazon.aws.ec2_ami_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-app-image"
+      state: available
+  register: found_ami
+
+# 4. 최신 AMI ID 추출
+- name: Set AMI ID fact
+  ansible.builtin.set_fact:
+    target_ami_id: "{{ (found_ami.images | sort(attribute='creation_date') | last).image_id }}"
+  when: found_ami.images | length > 0
+
+# 5. App Target Group 정보 조회
+- name: Get App Target Group info
+  community.aws.elb_target_group_info:
+    names:
+      - "{{ prefix }}-app-tg"
+    region: "{{ region }}"
+  register: app_tg_info
+
+# 6. 시작 템플릿 생성
+- name: Create Launch Template
+  amazon.aws.ec2_launch_template:
+    name: "{{ prefix }}-app-lt"
+    region: "{{ region }}"
+    image_id: "{{ target_ami_id }}"
+    instance_type: "{{ instance_type }}"
+    key_name: "{{ key_name }}"
+    iam_instance_profile: "{{ prefix }}-app-instance-profile"
+    network_interfaces:
+      - device_index: 0
+        groups:
+          - "{{ (sg_info.security_groups | selectattr('group_name', 'equalto', prefix + '-ssh-sg') | first).group_id }}"
+          - "{{ (sg_info.security_groups | selectattr('group_name', 'equalto', prefix + '-web-sg') | first).group_id }}"
+    tags:
+      Name: "{{ prefix }}-app-lt"
+    tag_specifications:
+      - resource_type: instance
+        tags:
+          Name: "{{ prefix }}-asg-instance"
+      - resource_type: volume
+        tags:
+          Name: "{{ prefix }}-asg-volume"
+  when: target_ami_id is defined
+  register: app_lt
+
+# 7. 오토스케일링 그룹 생성
+- name: Create Auto Scaling Group
+  amazon.aws.autoscaling_group:
+    name: "{{ prefix }}-app-asg"
+    region: "{{ region }}"
+    launch_template:
+      launch_template_name: "{{ prefix }}-app-lt"
+      version: "$Latest"
+    vpc_zone_identifier: "{{ pri_subnets_info.subnets | map(attribute='id') | join(',') }}"
+    min_size: 1
+    max_size: 3
+    desired_capacity: 2
+    health_check_type: EC2
+    health_check_period: 300
+    target_group_arns:
+      - "{{ app_tg_info.target_groups[0].target_group_arn }}"
+    tags:
+      - key: Name
+        value: "{{ prefix }}-asg-instance"
+        propagate_at_launch: true
+  when:
+    - target_ami_id is defined
+    - app_tg_info.target_groups | length > 0

@@ -1,0 +1,60 @@
+---
+- name: AWS Infrastructure Management
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - group_vars/main.yml
+
+  tasks:
+    # 1. 네트워크 계층 (VPC, Subnet, IGW, NAT, Route)
+    - name: Network Layer
+      include_role:
+        name: network
+        tasks_from: "{{ action }}"
+      tags: network
+
+    # 2. 권한 계층 (IAM Role, Instance Profile)
+    - name: IAM Layer
+      include_role:
+        name: iam
+        tasks_from: "{{ action }}"
+      tags: iam
+
+    # 3. 보안 계층 (Security Groups)
+    - name: Security Layer
+      include_role:
+        name: security
+        tasks_from: "{{ action }}"
+      tags: sg
+
+    # 4. 애플리케이션 원본 (Origin EC2)
+    - name: App Origin Layer
+      include_role:
+        name: app_origin
+        tasks_from: "{{ action }}"
+      tags: origin      
+
+    # 5. 젠킨스 서버 (Jenkins EC2)
+    - name: Jenkins Layer
+      include_role:
+        name: jenkins
+        tasks_from: "{{ action }}"
+      tags: jenkins      
+
+    # 6. 로드밸런스 및 대상그룹 (ALB, TG)
+    - name: LoadBalancer & Target Group Layer
+      include_role:
+        name: loadbalancer
+        tasks_from: "{{ action }}"
+      tags: traffic
+
+    # 7. 시작템플릿 및 오토스케일링 (LT, ASG)
+    - name: Traffic & Scaling Layer
+      include_role:
+        name: asg
+        tasks_from: "{{ action }}"
+      tags: traffic  
+
+
+

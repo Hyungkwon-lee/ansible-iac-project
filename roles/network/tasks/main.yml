@@ -1,0 +1,182 @@
+---
+# 1. VPC 생성
+- name: Create VPC
+  amazon.aws.ec2_vpc_net:
+    name: "{{ prefix }}-vpc"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ region }}"
+    tags:
+      Name: "{{ prefix }}-vpc"
+  register: vpc_result
+
+# 2. Subnets 생성 (Public & Private)
+- name: Create Subnets
+  amazon.aws.ec2_vpc_subnet:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    cidr: "{{ item.cidr }}"
+    az: "{{ item.az }}"
+    region: "{{ region }}"
+    tags:
+      Name: "{{ prefix }}-{{ item.name }}"
+  loop: "{{ pub_subnets + pri_subnets }}"
+  register: subnet_results
+
+# 3. Internet Gateway 생성
+- name: Create IGW
+  amazon.aws.ec2_vpc_igw:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    tags:
+      Name: "{{ prefix }}-igw"
+  register: igw_result
+
+# 4. 기존 NAT EIP 조회
+- name: Get existing NAT EIP info
+  amazon.aws.ec2_eip_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-nat-eip"
+  register: nat_eip_info
+
+# 5. NAT Gateway용 EIP 생성 (없을 때만)
+- name: Allocate EIP for NAT Gateway
+  amazon.aws.ec2_eip:
+    region: "{{ region }}"
+    tags:
+      Name: "{{ prefix }}-nat-eip"
+  register: nat_eip_created
+  when: nat_eip_info.addresses | length == 0
+
+# 6. NAT Gateway에 사용할 EIP allocation id 결정
+- name: Set NAT EIP allocation id
+  ansible.builtin.set_fact:
+    nat_eip_allocation_id: >-
+      {{
+        nat_eip_info.addresses[0].allocation_id
+        if (nat_eip_info.addresses | length > 0)
+        else nat_eip_created.allocation_id
+      }}
+
+# 7. 기존 NAT Gateway 조회
+- name: Get existing NAT Gateway info
+  amazon.aws.ec2_vpc_nat_gateway_info:
+    region: "{{ region }}"
+    filters:
+      vpc-id: "{{ vpc_result.vpc.id }}"
+  register: nat_gw_info
+
+# 8. 기존 NAT Gateway ID 확인
+- name: Set existing NAT Gateway id
+  ansible.builtin.set_fact:
+    existing_nat_gw_id: >-
+      {{
+        (
+          nat_gw_info.result
+          | selectattr('tags.Name', 'defined')
+          | selectattr('tags.Name', 'equalto', prefix ~ '-ngw')
+          | map(attribute='nat_gateway_id')
+          | list
+          | first
+        ) | default('')
+      }}
+
+# 9. NAT Gateway 생성 (없을 때만)
+- name: Create NAT Gateway
+  amazon.aws.ec2_vpc_nat_gateway:
+    state: present
+    region: "{{ region }}"
+    subnet_id: "{{ (subnet_results.results | selectattr('item.name', 'equalto', 'pub-a') | first).subnet.id }}"
+    allocation_id: "{{ nat_eip_allocation_id }}"
+    tags:
+      Name: "{{ prefix }}-ngw"
+    wait: yes
+  register: nat_gw_result
+  when: existing_nat_gw_id == ''
+
+# 10. 최종 NAT Gateway ID 결정
+- name: Set final NAT Gateway id
+  ansible.builtin.set_fact:
+    nat_gateway_id_final: >-
+      {{
+        existing_nat_gw_id
+        if existing_nat_gw_id != ''
+        else nat_gw_result.nat_gateway_id
+      }}
+
+# 11. Public Route Table 생성
+- name: Create Public Route Table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    tags:
+      Name: "{{ prefix }}-pub-rt"
+  register: pub_rt_result
+
+# 12. Private Route Table 생성
+- name: Create Private Route Table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    tags:
+      Name: "{{ prefix }}-pri-rt"
+  register: pri_rt_result
+
+# 13. Public RT에 IGW 기본 경로 추가
+- name: Add default route to Public Route Table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    lookup: tag
+    tags:
+      Name: "{{ prefix }}-pub-rt"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw_result.gateway_id }}"
+
+# 14. Private RT에 NAT Gateway 기본 경로 추가
+- name: Add default route to Private Route Table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    lookup: tag
+    tags:
+      Name: "{{ prefix }}-pri-rt"
+    routes:
+      - dest: 0.0.0.0/0
+        nat_gateway_id: "{{ nat_gateway_id_final }}"
+
+# 15. Public 서브넷들을 Public RT에 연결
+# 기존 route가 삭제되지 않도록 purge_routes: false 추가
+- name: Associate Public Subnets with Public Route Table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    lookup: tag
+    tags:
+      Name: "{{ prefix }}-pub-rt"
+    purge_routes: false
+    subnets: >-
+      {{
+        subnet_results.results
+        | selectattr('item.name', 'search', 'pub')
+        | map(attribute='subnet.id')
+        | list
+      }}
+
+# 16. Private 서브넷들을 Private RT에 연결
+# 기존 route가 삭제되지 않도록 purge_routes: false 추가
+- name: Associate Private Subnets with Private Route Table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region }}"
+    lookup: tag
+    tags:
+      Name: "{{ prefix }}-pri-rt"
+    purge_routes: false
+    subnets: >-
+      {{
+        subnet_results.results
+        | selectattr('item.name', 'search', 'pri')
+        | map(attribute='subnet.id')
+        | list
+      }}

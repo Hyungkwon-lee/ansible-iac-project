@@ -1,0 +1,105 @@
+---
+# 1. VPC ID 조회
+- name: Get VPC ID
+  amazon.aws.ec2_vpc_net_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-vpc"
+  register: vpc_info
+
+- name: Set VPC ID Fact
+  ansible.builtin.set_fact:
+    target_vpc_id: "{{ vpc_info.vpcs[0].id }}"
+  when: vpc_info.vpcs | length > 0
+
+# 2. Route Table 삭제
+- name: Remove Route Tables
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ target_vpc_id }}"
+    region: "{{ region }}"
+    state: absent
+    lookup: tag
+    tags:
+      Name: "{{ item }}"
+  loop:
+    - "{{ prefix }}-pub-rt"
+    - "{{ prefix }}-pri-rt"
+  when: target_vpc_id is defined
+  ignore_errors: yes
+
+# 3. NAT Gateway 조회
+- name: Get NAT Gateway Info
+  amazon.aws.ec2_vpc_nat_gateway_info:
+    region: "{{ region }}"
+    filters:
+      vpc-id: "{{ target_vpc_id }}"
+  register: nat_gw_info
+  when: target_vpc_id is defined
+
+# 4. NAT Gateway 삭제
+- name: Remove NAT Gateways
+  amazon.aws.ec2_vpc_nat_gateway:
+    nat_gateway_id: "{{ item.nat_gateway_id }}"
+    state: absent
+    region: "{{ region }}"
+    wait: yes
+  loop: >-
+    {{
+      nat_gw_info.result
+      | selectattr('tags.Name', 'defined')
+      | selectattr('tags.Name', 'equalto', prefix ~ '-ngw')
+      | list
+    }}
+  when:
+    - target_vpc_id is defined
+    - nat_gw_info.result is defined
+  ignore_errors: yes
+
+# 5. EIP 조회
+- name: Get NAT EIP Info
+  amazon.aws.ec2_eip_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-nat-eip"
+  register: eip_info
+
+# 6. EIP 릴리스
+- name: Release all NAT EIPs
+  amazon.aws.ec2_eip:
+    region: "{{ region }}"
+    state: absent
+    public_ip: "{{ item.public_ip }}"
+  loop: "{{ eip_info.addresses }}"
+  when:
+    - eip_info.addresses | length > 0
+    - item.public_ip is defined
+  ignore_errors: yes
+
+# 7. Subnet 삭제
+- name: Remove Subnets
+  amazon.aws.ec2_vpc_subnet:
+    vpc_id: "{{ target_vpc_id }}"
+    region: "{{ region }}"
+    state: absent
+    cidr: "{{ item.cidr }}"
+  loop: "{{ pub_subnets + pri_subnets }}"
+  when: target_vpc_id is defined
+  ignore_errors: yes
+
+# 8. IGW 삭제
+- name: Remove IGW
+  amazon.aws.ec2_vpc_igw:
+    vpc_id: "{{ target_vpc_id }}"
+    region: "{{ region }}"
+    state: absent
+  when: target_vpc_id is defined
+  ignore_errors: yes
+
+# 9. VPC 삭제
+- name: Remove VPC
+  amazon.aws.ec2_vpc_net:
+    name: "{{ prefix }}-vpc"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ region }}"
+    state: absent
+  when: target_vpc_id is defined

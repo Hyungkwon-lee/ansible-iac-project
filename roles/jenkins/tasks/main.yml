@@ -1,0 +1,67 @@
+---
+# 1. Jenkins용 Private Subnet 조회
+- name: Get Jenkins Subnet ID
+  amazon.aws.ec2_vpc_subnet_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-pri-a"
+  register: jenkins_subnet
+
+# 2. Jenkins용 보안 그룹 조회
+- name: Get SG IDs for Jenkins
+  amazon.aws.ec2_security_group_info:
+    region: "{{ region }}"
+    filters:
+      group-name:
+        - "{{ prefix }}-ssh-sg"
+        - "{{ prefix }}-web-sg"
+  register: sg_info
+
+# 3. Jenkins EC2 생성
+- name: Launch Jenkins EC2
+  amazon.aws.ec2_instance:
+    name: "{{ prefix }}-jenkins"
+    region: "{{ region }}"
+    image_id: "{{ ami_id }}"
+    instance_type: "{{ instance_type }}"
+    key_name: "{{ key_name }}"
+    vpc_subnet_id: "{{ jenkins_subnet.subnets[0].id }}"
+    exact_count: 1
+    filters:
+      "tag:Name": "{{ prefix }}-jenkins"
+      instance-state-name:
+        - pending
+        - running
+        - stopping
+        - stopped
+    network_interfaces:
+      - device_index: 0
+        subnet_id: "{{ jenkins_subnet.subnets[0].id }}"
+        private_ip_address: "{{ jenkins_fixed_ip }}"
+        groups: "{{ sg_info.security_groups | map(attribute='group_id') | list }}"
+    iam_instance_profile: "{{ prefix }}-jenkins-instance-profile"
+    user_data: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+
+      apt-get update -y
+      apt-get install -y git zip unzip wget curl
+
+      cd /home/ubuntu
+      rm -rf jenkins
+      git clone {{ jenkins_git_repo }}
+      cd jenkins
+      chmod u+x docker-install.sh
+      ./docker-install.sh
+      docker compose up -d
+    volumes:
+      - device_name: /dev/sda1
+        ebs:
+          volume_size: "{{ jenkins_volume_size }}"
+          volume_type: gp3
+          delete_on_termination: true
+    tags:
+      Name: "{{ prefix }}-jenkins"
+      Role: "Jenkins"
+  register: jenkins_ec2

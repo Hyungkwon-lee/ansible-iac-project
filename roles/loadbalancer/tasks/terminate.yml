@@ -1,0 +1,21 @@
+---
+# 1. ALB 삭제
+- name: Delete Application Load Balancer
+  amazon.aws.elb_application_lb:
+    name: "{{ prefix }}-alb"
+    region: "{{ region }}"
+    state: absent
+    wait: yes
+
+# 2. 대상 그룹 삭제
+- name: Delete App Target Group
+  community.aws.elb_target_group:
+    name: "{{ prefix }}-app-tg"
+    region: "{{ region }}"
+    state: absent
+
+- name: Delete Jenkins Target Group
+  community.aws.elb_target_group:
+    name: "{{ prefix }}-jenkins-tg"
+    region: "{{ region }}"
+    state: absent

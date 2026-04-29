@@ -1,0 +1,38 @@
+---
+# 1. 생성된 AMI 조회 (태그 기준)
+- name: Get AMI information
+  amazon.aws.ec2_ami_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-app-image"
+  register: ami_info
+
+# 2. AMI 등록 해제
+- name: Deregister AMIs
+  amazon.aws.ec2_ami:
+    region: "{{ region }}"
+    image_id: "{{ item.image_id }}"
+    state: absent
+  loop: "{{ ami_info.images }}"
+  when: ami_info.images | length > 0
+
+# 3. 연결된 스냅샷 삭제
+- name: Remove associated Snapshots
+  amazon.aws.ec2_snapshot:
+    region: "{{ region }}"
+    snapshot_id: "{{ item.1.ebs.snapshot_id }}"
+    state: absent
+  loop: "{{ ami_info.images | subelements('block_device_mappings', skip_missing=True) }}"
+  when:
+    - ami_info.images | length > 0
+    - item.1.ebs is defined
+    - item.1.ebs.snapshot_id is defined
+
+# 4. 원본 EC2 종료
+- name: Terminate App Origin EC2
+  amazon.aws.ec2_instance:
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ prefix }}-app-origin"
+    state: absent
+    wait: true

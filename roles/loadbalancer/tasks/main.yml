@@ -1,0 +1,136 @@
+---
+# 1. Public 서브넷 ID들 조회
+- name: Get Public Subnet IDs for ALB
+  amazon.aws.ec2_vpc_subnet_info:
+    region: "{{ region }}"
+    filters:
+      "tag:Name":
+        - "{{ prefix }}-pub-a"
+        - "{{ prefix }}-pub-c"
+  register: pub_subnets_info
+
+# 2. Web 보안 그룹 ID 조회
+- name: Get Web Security Group ID
+  amazon.aws.ec2_security_group_info:
+    region: "{{ region }}"
+    filters:
+      group-name: "{{ prefix }}-web-sg"
+  register: web_sg_info
+
+# 3. 조회한 정보들을 변수로 고정
+- name: Set ALB required facts
+  ansible.builtin.set_fact:
+    current_pub_subnet_ids: "{{ pub_subnets_info.subnets | map(attribute='id') | list }}"
+    current_web_sg_id: "{{ web_sg_info.security_groups[0].group_id }}"
+    current_vpc_id: "{{ pub_subnets_info.subnets[0].vpc_id }}"
+
+# 4. App 타겟 그룹 생성 (ASG용)
+- name: Create App Target Group
+  community.aws.elb_target_group:
+    name: "{{ prefix }}-app-tg"
+    protocol: http
+    port: 80
+    vpc_id: "{{ current_vpc_id }}"
+    region: "{{ region }}"
+    health_check_path: /
+    health_check_protocol: HTTP
+    target_type: instance
+    state: present
+    tags:
+      Name: "{{ prefix }}-app-tg"
+  register: app_tg
+
+# 5. Jenkins 타겟 그룹 생성 (IP 방식)
+- name: Create Jenkins Target Group
+  community.aws.elb_target_group:
+    name: "{{ prefix }}-jenkins-tg"
+    protocol: http
+    port: 80
+    vpc_id: "{{ current_vpc_id }}"
+    region: "{{ region }}"
+    target_type: ip
+    health_check_path: /login
+    health_check_protocol: HTTP
+    state: present
+    targets:
+      - Id: "{{ jenkins_fixed_ip }}"
+        Port: 80
+    tags:
+      Name: "{{ prefix }}-jenkins-tg"
+  register: jenkins_tg
+
+# 6. ALB 먼저 생성 (기본 Listener만)
+- name: Create ALB with default listener only
+  amazon.aws.elb_application_lb:
+    name: "{{ prefix }}-alb"
+    region: "{{ region }}"
+    subnets: "{{ current_pub_subnet_ids }}"
+    security_groups:
+      - "{{ current_web_sg_id }}"
+    state: present
+    wait: true
+    listeners:
+      - Protocol: HTTP
+        Port: 80
+        DefaultActions:
+          - Type: fixed-response
+            FixedResponseConfig:
+              ContentType: text/plain
+              MessageBody: Not Found
+              StatusCode: "404"
+  register: alb_create_result
+
+# 7. ALB 안정화 대기
+- name: Wait for ALB stabilization
+  ansible.builtin.pause:
+    seconds: 20
+
+# 8. ALB 정보 재조회
+- name: Get ALB info
+  amazon.aws.elb_application_lb_info:
+    names:
+      - "{{ prefix }}-alb"
+    region: "{{ region }}"
+  register: alb_info
+
+# 9. Listener / Host 기반 Rule 반영
+- name: Update ALB listener with host-based routing rules
+  amazon.aws.elb_application_lb:
+    name: "{{ prefix }}-alb"
+    region: "{{ region }}"
+    subnets: "{{ current_pub_subnet_ids }}"
+    security_groups:
+      - "{{ current_web_sg_id }}"
+    state: present
+    wait: true
+    listeners:
+      - Protocol: HTTP
+        Port: 80
+        DefaultActions:
+          - Type: fixed-response
+            FixedResponseConfig:
+              ContentType: text/plain
+              MessageBody: Not Found
+              StatusCode: "404"
+        Rules:
+          - Priority: 10
+            Conditions:
+              - Field: host-header
+                HostHeaderConfig:
+                  Values:
+                    - "{{ jenkins_domain }}"
+            Actions:
+              - Type: forward
+                TargetGroupArn: "{{ jenkins_tg.target_group_arn }}"
+          - Priority: 20
+            Conditions:
+              - Field: host-header
+                HostHeaderConfig:
+                  Values:
+                    - "{{ app_domain }}"
+            Actions:
+              - Type: forward
+                TargetGroupArn: "{{ app_tg.target_group_arn }}"
+  when:
+    - alb_info.load_balancers is defined
+    - alb_info.load_balancers | length > 0

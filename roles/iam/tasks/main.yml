@@ -1,0 +1,67 @@
+---
+# 1. EC2용 Trust Policy
+- name: Create EC2 Trust Policy
+  ansible.builtin.set_fact:
+    ec2_trust_policy:
+      Version: '2012-10-17'
+      Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+
+# 2. APP EC2용 역할 생성
+- name: Create IAM Role for APP EC2
+  amazon.aws.iam_role:
+    name: "{{ prefix }}-app-role"
+    assume_role_policy_document: "{{ ec2_trust_policy | to_json }}"
+    managed_policies:
+      - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+    tags:
+      Name: "{{ prefix }}-app-role"
+
+# 3. APP EC2 인스턴스 프로파일 생성
+- name: Create APP EC2 Instance Profile
+  amazon.aws.iam_instance_profile:
+    name: "{{ prefix }}-app-instance-profile"
+    role: "{{ prefix }}-app-role"
+
+# 4. Jenkins EC2용 역할 생성
+- name: Create IAM Role for Jenkins EC2
+  amazon.aws.iam_role:
+    name: "{{ prefix }}-jenkins-role"
+    assume_role_policy_document: "{{ ec2_trust_policy | to_json }}"
+    managed_policies:
+      - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
+    tags:
+      Name: "{{ prefix }}-jenkins-role"
+
+# 5. Jenkins EC2 인스턴스 프로파일 생성
+- name: Create Jenkins Instance Profile
+  amazon.aws.iam_instance_profile:
+    name: "{{ prefix }}-jenkins-instance-profile"
+    role: "{{ prefix }}-jenkins-role"
+
+# 6. CodeDeploy 서비스용 Trust Policy
+- name: Create CodeDeploy Trust Policy
+  ansible.builtin.set_fact:
+    codedeploy_trust_policy:
+      Version: '2012-10-17'
+      Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: codedeploy.amazonaws.com
+
+# 7. CodeDeploy 서비스용 역할 생성
+- name: Create IAM Role for CodeDeploy Service
+  amazon.aws.iam_role:
+    name: "{{ prefix }}-codedeploy-service-role"
+    assume_role_policy_document: "{{ codedeploy_trust_policy | to_json }}"
+    managed_policies:
+      - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+    tags:
+      Name: "{{ prefix }}-codedeploy-service-role"
