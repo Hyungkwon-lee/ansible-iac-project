@@ -23,12 +23,14 @@ ansible-playbook playbooks/pb-app-origin.yml -e "action=deploy"
 
 ## 구축 흐름 (main.yml)
 
+```
 Public Subnet / SG 조회
 → App Origin EC2 생성 (user_data 포함)
 → EC2 running 상태 대기
 → user_data 완료 대기 (180초)
 → AMI 생성
 → AMI ID 출력
+```
 
 ---
 
@@ -81,8 +83,9 @@ AMI 생성 후에는 ASG가 이 이미지를 기반으로 인스턴스를 자동
 ---
 
 ## 삭제 흐름 (terminate.yml)  
-
+```
 AMI 조회 → AMI 등록 해제 → 연결된 스냅샷 삭제 → Origin EC2 종료
+```
 
 AMI를 삭제해도 스냅샷은 자동으로 삭제되지 않습니다.
 `subelements`로 AMI에 연결된 스냅샷을 순회하며 함께 정리합니다.
