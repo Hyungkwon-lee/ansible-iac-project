@@ -79,7 +79,9 @@ ansible-playbook site.yml -e "action=main" --tags traffic
 
 ## 실행 순서
 
+```
 network → iam → security → app_origin → jenkins → loadbalancer → asg
+```
 
 의존관계에 따라 순서가 고정됩니다.
 
