@@ -15,8 +15,8 @@ AMI를 생성합니다. 생성된 AMI는 ASG의 Launch Template 기반 이미지
 ## 실행
 
 ```bash
-ansible-playbook site.yml -e "action=main" --tags origin
-ansible-playbook playbooks/pb-app-origin.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy" --tags origin
+ansible-playbook playbooks/pb-app-origin.yml -e "action=deploy"
 ```
 
 ---
