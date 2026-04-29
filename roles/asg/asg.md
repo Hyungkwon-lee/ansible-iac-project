@@ -17,19 +17,21 @@ app_origin에서 생성한 AMI를 기반으로 Launch Template과 Auto Scaling G
 ## 실행
 
 ```bash
-ansible-playbook site.yml -e "action=main" --tags traffic
-ansible-playbook playbooks/pb-asg.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy" --tags asg
+ansible-playbook playbooks/pb-asg.yml -e "action=deploy"
 ```
 
 ---
 
 ## 구축 흐름 (main.yml)
 
+```
 Private Subnet / SG 조회
 → app_origin에서 생성한 최신 AMI 조회
 → App TG ARN 조회
 → Launch Template 생성
 → ASG 생성 (App TG 연동)
+```
 
 ---
 
@@ -80,7 +82,9 @@ ASG가 생성하는 모든 인스턴스에 Name 태그가 자동으로 붙습니
 
 ## 삭제 흐름 (terminate.yml)
 
+```
 ASG 삭제 (wait_timeout: 600) → Launch Template 삭제
+```
 
 ASG 삭제 시 관리 중인 EC2 인스턴스도 함께 종료됩니다.
 종료 완료까지 시간이 걸리므로 `wait_for_instances: yes`로 대기합니다.
