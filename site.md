@@ -68,8 +68,8 @@ ansible-playbook site.yml -e "action=main"
 
 # 특정 role만 실행 (태그 사용)
 ansible-playbook site.yml -e "action=main" --tags network
-ansible-playbook site.yml -e "action=main" --tags iam
 ansible-playbook site.yml -e "action=main" --tags sg
+ansible-playbook site.yml -e "action=main" --tags iam
 ansible-playbook site.yml -e "action=main" --tags origin
 ansible-playbook site.yml -e "action=main" --tags jenkins
 ansible-playbook site.yml -e "action=main" --tags traffic
@@ -88,8 +88,8 @@ network → iam → security → app_origin → jenkins → loadbalancer → asg
 | 순서 | Role | 생성 리소스 | 이유 |
 |------|------|------------|------|
 | 1 | network | VPC, Subnet, IGW, NAT, Route Table | 모든 리소스의 기반 |
-| 2 | iam | IAM Role, Instance Profile | EC2 생성 전 Role 필요 |
-| 3 | security | Security Group | EC2 생성 전 SG 필요 |
+| 2 | iam | Security Group | EC2 생성 전 SG 필요 |
+| 3 | security | IAM Role, Instance Profile | EC2 생성 전 Role 필요 |
 | 4 | app_origin | WAS EC2, AMI | ASG의 Launch Template 기반 이미지 |
 | 5 | jenkins | Jenkins EC2 | 독립적이나 네트워크/SG 필요 |
 | 6 | loadbalancer | ALB, Target Group | ASG 연동 전 TG 필요 |
