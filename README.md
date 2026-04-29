@@ -24,13 +24,13 @@ ansible-playbook site.yml -e "action=main"
 | 경로 | 설명 | 문서 |
 |------|------|------|
 | `site.yml` | 전체 실행 흐름, MFA 인증, 변수 구성 | [site.md](./site.md) |
-| `roles/network` | VPC, Subnet, IGW, NAT, Route Table | [network.md](./roles/network.md) |
-| `roles/iam` | IAM Role, Instance Profile | [iam.md](./roles/iam.md) |
-| `roles/security` | Security Group | [security.md](./roles/security.md) |
-| `roles/app_origin` | WAS EC2, AMI 생성 | [app_origin.md](./roles/app_origin.md) |
-| `roles/jenkins` | Jenkins EC2 | [jenkins.md](./roles/jenkins.md) |
-| `roles/loadbalancer` | ALB, Target Group | [loadbalancer.md](./roles/loadbalancer.md) |
-| `roles/asg` | Launch Template, Auto Scaling Group | [asg.md](./roles/asg.md) |
+| `roles/network` | VPC, Subnet, IGW, NAT, Route Table | [network.md](./roles/network/network.md) |
+| `roles/iam` | IAM Role, Instance Profile | [iam.md](./roles/iam/iam.md) |
+| `roles/security` | Security Group | [security.md](./roles/security/security.md) |
+| `roles/app_origin` | WAS EC2, AMI 생성 | [app_origin.md](./roles/app_origin/app_origin.md) |
+| `roles/jenkins` | Jenkins EC2 | [jenkins.md](./roles/jenkins/jenkins.md) |
+| `roles/loadbalancer` | ALB, Target Group | [loadbalancer.md](./roles/loadbalancer/loadbalancer.md) |
+| `roles/asg` | Launch Template, Auto Scaling Group | [asg.md](./roles/asg/asg.md) |
 
 ---
 
