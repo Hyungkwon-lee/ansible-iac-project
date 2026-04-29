@@ -10,6 +10,7 @@
     - name: Deploy Jenkins EC2
       include_role:
         name: jenkins
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate Jenkins EC2
