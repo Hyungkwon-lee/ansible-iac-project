@@ -16,8 +16,8 @@ ASG 생성 전에 실행되어야 합니다.
 ## 실행
 
 ```bash
-ansible-playbook site.yml -e "action=main" --tags traffic
-ansible-playbook playbooks/pb-loadbalancer.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy" --tags loadbalancer
+ansible-playbook playbooks/pb-loadbalancer.yml -e "action=deploy"
 ```
 
 ---
