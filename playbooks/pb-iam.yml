@@ -10,6 +10,7 @@
     - name: Deploy IAM Resources
       include_role:
         name: iam
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate IAM Resources
