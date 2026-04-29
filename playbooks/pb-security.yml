@@ -10,6 +10,7 @@
     - name: Deploy Security Groups
       include_role:
         name: security
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate Security Groups
