@@ -18,8 +18,8 @@ EC2 인스턴스 생성 전에 실행되어야 합니다.
 ## 실행
 
 ```bash
-ansible-playbook site.yml -e "action=main" --tags sg
-ansible-playbook playbooks/pb-security.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy" --tags sg
+ansible-playbook playbooks/pb-security.yml -e "action=deploy"
 ```
 
 ---
