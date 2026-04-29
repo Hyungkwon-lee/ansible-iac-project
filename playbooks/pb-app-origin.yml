@@ -10,6 +10,7 @@
     - name: Deploy App Origin EC2
       include_role:
         name: app_origin
+        tasks_from: deploy
       when: action == "deploy"
 
     - name: Terminate App Origin EC2
