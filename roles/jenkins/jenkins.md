@@ -16,8 +16,8 @@ Jenkins EC2를 Private Subnet에 생성하고 Docker Compose로 Jenkins를 실�
 ## 실행
 
 ```bash
-ansible-playbook site.yml -e "action=main" --tags jenkins
-ansible-playbook playbooks/pb-jenkins.yml -e "action=main"
+ansible-playbook site.yml -e "action=deploy" --tags jenkins
+ansible-playbook playbooks/pb-jenkins.yml -e "action=deploy"
 ```
 
 ---
@@ -87,7 +87,9 @@ Docker Compose로 Jenkins 컨테이너를 자동 실행합니다.
 
 ## 삭제 흐름 (terminate.yml)
 
+```
 태그 기준으로 Jenkins EC2 조회 → 종료 (wait: yes)
+```
 
 ---
 
